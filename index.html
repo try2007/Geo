@@ -3,22 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>P2P GeoMap — живые пользователи</title>
+    <title>GeoP2P — все на карте</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        body, html {
-            width: 100%;
-            height: 100%;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
-        #map {
-            width: 100%;
-            height: 70%;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body, html { width: 100%; height: 100%; font-family: 'Segoe UI', sans-serif; }
+        #map { width: 100%; height: 75%; }
         .panel {
             position: absolute;
             top: 20px;
@@ -28,70 +17,21 @@
             padding: 16px;
             border-radius: 16px;
             box-shadow: 0 4px 20px rgba(0,0,0,0.2);
-            min-width: 240px;
+            min-width: 260px;
             z-index: 1000;
             border: 1px solid rgba(0,0,0,0.1);
-        }
-        .panel h3 {
-            margin: 0 0 10px 0;
-            font-size: 16px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        .user-list {
-            list-style: none;
-            max-height: 250px;
+            max-height: 80%;
             overflow-y: auto;
-            margin: 10px 0;
-            padding: 0;
         }
-        .user-list li {
-            padding: 6px 8px;
-            margin-bottom: 4px;
-            background: #f5f5f5;
-            border-radius: 8px;
-            font-size: 13px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        .user-list .you {
-            background: #e8f5e9;
-            border-left: 3px solid #4caf50;
-        }
-        .online-count {
-            background: #4caf50;
-            color: white;
-            border-radius: 20px;
-            padding: 2px 10px;
-            font-size: 12px;
-        }
-        input, button {
-            width: 100%;
-            padding: 8px;
-            margin-top: 8px;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            font-size: 13px;
-        }
-        button {
-            background: #4caf50;
-            color: white;
-            border: none;
-            cursor: pointer;
-            font-weight: bold;
-            transition: 0.2s;
-        }
-        button:hover {
-            background: #45a049;
-        }
-        button.secondary {
-            background: #2196f3;
-        }
-        button.danger {
-            background: #ff5722;
-        }
+        .panel h3 { margin: 0 0 10px 0; font-size: 16px; display: flex; align-items: center; gap: 8px; }
+        .user-list { list-style: none; max-height: 250px; overflow-y: auto; margin: 10px 0; padding: 0; }
+        .user-list li { padding: 6px 8px; margin-bottom: 4px; background: #f5f5f5; border-radius: 8px; font-size: 13px; display: flex; align-items: center; gap: 8px; }
+        .user-list .you { background: #e8f5e9; border-left: 3px solid #4caf50; }
+        .online-count { background: #4caf50; color: white; border-radius: 20px; padding: 2px 10px; font-size: 12px; }
+        input, button { width: 100%; padding: 8px; margin-top: 8px; border: 1px solid #ddd; border-radius: 8px; font-size: 13px; }
+        button { background: #4caf50; color: white; border: none; cursor: pointer; font-weight: bold; transition: 0.2s; }
+        button:hover { background: #45a049; }
+        button.secondary { background: #2196f3; }
         .status {
             position: absolute;
             bottom: 20px;
@@ -105,26 +45,21 @@
             z-index: 1000;
             font-family: monospace;
         }
-        .badge {
-            width: 10px;
-            height: 10px;
-            border-radius: 10px;
-            display: inline-block;
-        }
-        .room-info {
-            font-size: 11px;
-            background: #f0f0f0;
-            padding: 6px;
+        .badge { width: 10px; height: 10px; border-radius: 10px; display: inline-block; }
+        .coords { font-size: 10px; color: #666; margin-top: 4px; text-align: center; }
+        .share-panel {
+            background: #f0f8ff;
             border-radius: 8px;
+            padding: 8px;
             margin-top: 8px;
             text-align: center;
-            word-break: break-all;
         }
         .share-link {
-            font-size: 10px;
+            font-size: 11px;
             color: #2196f3;
             cursor: pointer;
             text-decoration: underline;
+            word-break: break-all;
         }
     </style>
     <script src="https://api-maps.yandex.ru/2.1/?apikey=aff39fed-8ca3-47e1-978f-070535e0ea3a&lang=ru_RU"></script>
@@ -135,101 +70,132 @@
     
     <div class="panel">
         <h3>
-            👥 Активные
+            🌍 В сети
             <span id="userCount" class="online-count">0</span>
         </h3>
         
         <div>
             <input type="text" id="userName" placeholder="Ваше имя" maxlength="20">
-            <input type="text" id="roomName" placeholder="ID комнаты" value="geo-map-room">
-            <button id="connectBtn" class="secondary">🔗 Подключиться к комнате</button>
-            <button id="createRoomBtn">✨ Создать новую комнату</button>
+            <button id="shareLocationBtn" style="background:#2196f3;">📍 Отправить мои координаты</button>
+            <button id="autoShareBtn" style="background:#ff9800;">🔄 Авто-отправка (вкл)</button>
         </div>
         
-        <div id="roomInfo" class="room-info" style="display:none;">
-            🔗 Ваша ссылка: <span id="roomLink"></span>
-            <span id="copyLink" class="share-link">(копировать)</span>
+        <div class="share-panel">
+            📢 <strong>Пригласите друзей!</strong><br>
+            <span id="pageLink" class="share-link">Загрузка ссылки...</span>
+            <span id="copyLinkBtn" class="share-link" style="margin-left:8px;">(копировать)</span>
+            <div style="font-size:10px; margin-top:4px;">Все, кто откроет эту ссылку, увидят друг друга</div>
         </div>
         
         <ul id="userList" class="user-list">
-            <li style="text-align:center; color:#999;">— не подключено —</li>
+            <li style="text-align:center; color:#999;">⏳ Загрузка...</li>
         </ul>
         
-        <button id="shareLocationBtn" style="background:#2196f3;">📍 Отправить мои координаты</button>
-        <button id="autoShareBtn" style="background:#ff9800;">🔄 Авто-отправка (каждые 10 сек)</button>
+        <div id="myCoordsDisplay" class="coords" style="text-align:center; margin-top:8px;">
+            ⏳ Определение местоположения...
+        </div>
         
         <div style="font-size: 10px; color: #888; margin-top: 10px; text-align: center;">
             ⚡ P2P | Данные идут напрямую между браузерами<br>
-            🌐 Откройте эту же ссылку на другом устройстве
+            🌐 Без серверов, без комнат, без регистрации
         </div>
     </div>
     <div class="status" id="status">
-        ⚪ Не подключено
+        🔌 Подключение к сети...
     </div>
 
     <script>
-        // ============== P2P ЧАСТЬ (PeerJS) ==============
+        // ============== ГЛОБАЛЬНАЯ P2P СЕТЬ (без комнат) ==============
         let peer = null;
         let connections = new Map();      // peerId -> DataConnection
         let remoteUsers = new Map();       // peerId -> { name, lat, lng, lastSeen }
         let myPeerId = null;
         let myLocation = null;
         let myName = 'User_' + Math.floor(Math.random() * 1000);
-        let currentRoom = null;
         let autoShareInterval = null;
+        let reconnectAttempts = 0;
         
         // Карта
         let myMap = null;
-        let placemarks = new Map();
+        let myOwnPlacemark = null;
+        let remotePlacemarks = new Map();
+        
+        // Уникальный ID для глобальной сети (один для всех)
+        const GLOBAL_NETWORK_ID = 'geo-p2p-global-network-v1';
         
         // Инициализация карты
         function initMap(centerLat, centerLng) {
             if (myMap) return;
             myMap = new ymaps.Map("map", {
                 center: [centerLat, centerLng],
-                zoom: 13,
+                zoom: 14,
                 controls: ['zoomControl', 'fullscreenControl', 'geolocationControl']
             });
+            
+            if (myLocation) {
+                addMyPlacemark();
+            }
         }
         
-        // Обновление меток на карте
-        function updateMapMarkers() {
+        // Своя метка
+        function addMyPlacemark() {
+            if (!myMap || !myLocation) return;
+            
+            if (myOwnPlacemark) {
+                myOwnPlacemark.geometry.setCoordinates([myLocation.lat, myLocation.lng]);
+            } else {
+                myOwnPlacemark = new ymaps.Placemark(
+                    [myLocation.lat, myLocation.lng],
+                    {
+                        hintContent: `${myName} (вы)`,
+                        balloonContent: `<strong>${myName}</strong><br>📍 Это вы!<br>Координаты: ${myLocation.lat.toFixed(5)}, ${myLocation.lng.toFixed(5)}`
+                    },
+                    {
+                        preset: 'islands#greenCircleIcon',
+                        iconColor: '#4caf50'
+                    }
+                );
+                myMap.geoObjects.add(myOwnPlacemark);
+            }
+            
+            myMap.setCenter([myLocation.lat, myLocation.lng], 14);
+            document.getElementById('myCoordsDisplay').innerHTML = `📍 Вы: ${myLocation.lat.toFixed(5)}, ${myLocation.lng.toFixed(5)}`;
+        }
+        
+        // Метки других пользователей
+        function updateRemoteMarkers() {
             if (!myMap) return;
             
-            // Удаляем старые метки
-            for (let [id, marker] of placemarks) {
-                if (id !== myPeerId && !remoteUsers.has(id)) {
+            for (let [id, marker] of remotePlacemarks) {
+                if (!remoteUsers.has(id)) {
                     myMap.geoObjects.remove(marker);
-                    placemarks.delete(id);
+                    remotePlacemarks.delete(id);
                 }
             }
             
-            // Добавляем/обновляем метки
             for (let [id, user] of remoteUsers) {
                 if (user.lat && user.lng) {
-                    if (placemarks.has(id)) {
-                        placemarks.get(id).geometry.setCoordinates([user.lat, user.lng]);
+                    if (remotePlacemarks.has(id)) {
+                        remotePlacemarks.get(id).geometry.setCoordinates([user.lat, user.lng]);
                     } else {
-                        const isYou = (id === myPeerId);
                         const placemark = new ymaps.Placemark(
                             [user.lat, user.lng],
-                            { 
+                            {
                                 hintContent: user.name,
                                 balloonContent: `${user.name}<br>📍 ${user.lat.toFixed(5)}, ${user.lng.toFixed(5)}<br>🕐 ${Math.floor((Date.now() - (user.lastSeen || Date.now()))/1000)} сек назад`
                             },
-                            { preset: isYou ? 'islands#greenCircleIcon' : 'islands#blueCircleIcon' }
+                            { preset: 'islands#blueCircleIcon' }
                         );
                         myMap.geoObjects.add(placemark);
-                        placemarks.set(id, placemark);
+                        remotePlacemarks.set(id, placemark);
                     }
                 }
             }
             
-            // Обновляем список в панели
             updateUserList();
         }
         
-        // Обновление списка пользователей
+        // Список пользователей
         function updateUserList() {
             const userListEl = document.getElementById('userList');
             const userCountEl = document.getElementById('userCount');
@@ -238,7 +204,7 @@
             userCountEl.textContent = onlineCount;
             
             if (users.length === 0 && !myLocation) {
-                userListEl.innerHTML = '<li style="text-align:center; color:#999;">— нет активных —</li>';
+                userListEl.innerHTML = '<li style="text-align:center; color:#999;">🌐 Никого нет, пригласите друзей!</li>';
                 return;
             }
             
@@ -262,7 +228,7 @@
             userListEl.innerHTML = html;
         }
         
-        // Отправка координат всем подключённым
+        // Отправка координат всем
         function broadcastLocation() {
             if (!myLocation) {
                 alert('Сначала определите местоположение');
@@ -286,19 +252,19 @@
             }
             
             const statusEl = document.getElementById('status');
-            statusEl.innerHTML = `✅ Координаты отправлены (${sent} получателей)`;
+            statusEl.innerHTML = `✅ Координаты отправлены (${sent} пользователей)`;
             setTimeout(() => {
-                if (currentRoom) statusEl.innerHTML = `🟢 В комнате: ${currentRoom} | ${connections.size} подключений`;
+                statusEl.innerHTML = `🟢 В сети: ${connections.size} подключений | ${remoteUsers.size} пользователей`;
             }, 2000);
         }
         
-        // Авто-отправка
+        // Автоотправка
         function toggleAutoShare() {
             if (autoShareInterval) {
                 clearInterval(autoShareInterval);
                 autoShareInterval = null;
                 document.getElementById('autoShareBtn').style.background = '#ff9800';
-                document.getElementById('autoShareBtn').innerHTML = '🔄 Авто-отправка (выкл)';
+                document.getElementById('autoShareBtn').innerHTML = '🔄 Авто-отправка (вкл)';
                 document.getElementById('status').innerHTML = '⏸ Авто-отправка отключена';
             } else {
                 autoShareInterval = setInterval(() => {
@@ -307,21 +273,22 @@
                     }
                 }, 10000);
                 document.getElementById('autoShareBtn').style.background = '#f44336';
-                document.getElementById('autoShareBtn').innerHTML = '⏸ Авто-отправка (вкл)';
+                document.getElementById('autoShareBtn').innerHTML = '⏸ Авто-отправка (выкл)';
                 document.getElementById('status').innerHTML = '🔄 Авто-отправка активна (каждые 10 сек)';
             }
         }
         
-        // Обработка входящего соединения
+        // Настройка соединения с другим пиром
         function setupConnection(conn) {
             const peerId = conn.peer;
+            if (connections.has(peerId)) return;
+            
             connections.set(peerId, conn);
             
             conn.on('open', () => {
-                console.log('Соединение открыто с', peerId);
-                document.getElementById('status').innerHTML = `🟢 Подключено: ${connections.size} пиров`;
+                console.log('Соединение с', peerId);
+                document.getElementById('status').innerHTML = `🟢 В сети: ${connections.size} подключений`;
                 
-                // Отправляем свои координаты новому пиру
                 if (myLocation) {
                     conn.send({
                         type: 'location',
@@ -342,22 +309,26 @@
                         lng: data.lng,
                         lastSeen: data.timestamp || Date.now()
                     });
-                    updateMapMarkers();
+                    updateRemoteMarkers();
                 }
             });
             
             conn.on('close', () => {
-                console.log('Соединение закрыто с', peerId);
                 connections.delete(peerId);
                 remoteUsers.delete(peerId);
-                updateMapMarkers();
-                document.getElementById('status').innerHTML = `🟡 Отключился: ${peerId.slice(0, 8)} | Осталось: ${connections.size}`;
+                updateRemoteMarkers();
+                document.getElementById('status').innerHTML = `🟡 Пользователь отключился | В сети: ${connections.size}`;
+            });
+            
+            conn.on('error', (err) => {
+                console.error('Ошибка соединения:', err);
+                connections.delete(peerId);
+                remoteUsers.delete(peerId);
             });
         }
         
-        // Подключение к комнате через PeerJS
-        function connectToRoom(roomId) {
-            // Отключаемся от старой комнаты
+        // Подключение к глобальной сети
+        function connectToGlobalNetwork() {
             if (peer) {
                 for (let [id, conn] of connections) {
                     conn.close();
@@ -367,12 +338,11 @@
                 peer.destroy();
             }
             
-            currentRoom = roomId;
             myName = document.getElementById('userName').value.trim() || myName;
             
-            // Создаём нового пира с ID = roomId + случайный суффикс
-            const peerId = roomId + '_' + Math.random().toString(36).substr(2, 6);
-            peer = new Peer(peerId, {
+            // Генерируем уникальный ID для этого клиента
+            const clientId = GLOBAL_NETWORK_ID + '_' + Math.random().toString(36).substr(2, 8);
+            peer = new Peer(clientId, {
                 host: '0.peerjs.com',
                 port: 443,
                 path: '/',
@@ -380,45 +350,38 @@
                 config: {
                     iceServers: [
                         { urls: 'stun:stun.l.google.com:19302' },
-                        { urls: 'stun:stun1.l.google.com:19302' }
+                        { urls: 'stun:stun1.l.google.com:19302' },
+                        { urls: 'stun:stun2.l.google.com:19302' }
                     ]
                 }
             });
             
-            myPeerId = peerId;
+            myPeerId = clientId;
             
             peer.on('open', () => {
-                console.log('Peer открыт:', peerId);
-                document.getElementById('status').innerHTML = `🟢 Комната: ${roomId} | ID: ${peerId.slice(-6)}`;
+                console.log('Подключён к глобальной сети:', clientId);
+                document.getElementById('status').innerHTML = `🟢 Подключён к сети | Ваш ID: ${clientId.slice(-6)}`;
                 
-                // Показываем ссылку для приглашения
-                const roomLink = window.location.href.split('#')[0] + '#' + roomId;
-                document.getElementById('roomLink').innerHTML = roomLink;
-                document.getElementById('roomInfo').style.display = 'block';
+                // Получаем список всех пиров из localStorage (глобальный)
+                let allPeers = JSON.parse(localStorage.getItem(GLOBAL_NETWORK_ID + '_peers') || '[]');
                 
-                // Подключаемся ко всем существующим пирам в комнате
-                // Для этого нужно знать ID других пиров — PeerJS не хранит список,
-                // поэтому используем URL hash для передачи ID комнаты, а пиры сами находят друг друга
-                // Проще: приглашаем через ссылку, и каждый новый пир подключается к уже существующим
-                
-                // Ищем других пиров в той же комнате через localStorage (костыль, но работает)
-                const peersInRoom = JSON.parse(localStorage.getItem('peers_' + roomId) || '[]');
-                peersInRoom.forEach(existingPeerId => {
-                    if (existingPeerId !== peerId && !connections.has(existingPeerId)) {
+                // Подключаемся ко всем существующим пирам
+                allPeers.forEach(existingPeerId => {
+                    if (existingPeerId !== clientId && !connections.has(existingPeerId)) {
                         const conn = peer.connect(existingPeerId);
                         setupConnection(conn);
                     }
                 });
                 
                 // Добавляем себя в список
-                const updatedPeers = [...new Set([...peersInRoom, peerId])];
-                localStorage.setItem('peers_' + roomId, JSON.stringify(updatedPeers));
+                const updatedPeers = [...new Set([...allPeers, clientId])];
+                localStorage.setItem(GLOBAL_NETWORK_ID + '_peers', JSON.stringify(updatedPeers));
                 
-                // Очищаем список при закрытии
+                // Очищаем при закрытии
                 window.addEventListener('beforeunload', () => {
-                    const currentPeers = JSON.parse(localStorage.getItem('peers_' + roomId) || '[]');
-                    const filtered = currentPeers.filter(p => p !== peerId);
-                    localStorage.setItem('peers_' + roomId, JSON.stringify(filtered));
+                    const currentPeers = JSON.parse(localStorage.getItem(GLOBAL_NETWORK_ID + '_peers') || '[]');
+                    const filtered = currentPeers.filter(p => p !== clientId);
+                    localStorage.setItem(GLOBAL_NETWORK_ID + '_peers', JSON.stringify(filtered));
                 });
             });
             
@@ -428,7 +391,15 @@
             
             peer.on('error', (err) => {
                 console.error('PeerJS ошибка:', err);
-                document.getElementById('status').innerHTML = `❌ Ошибка: ${err.type}`;
+                document.getElementById('status').innerHTML = `❌ Ошибка: ${err.type}. Переподключение...`;
+                
+                // Автоматическое переподключение через 3 секунды
+                setTimeout(() => {
+                    if (reconnectAttempts < 5) {
+                        reconnectAttempts++;
+                        connectToGlobalNetwork();
+                    }
+                }, 3000);
             });
         }
         
@@ -438,64 +409,76 @@
                 navigator.geolocation.getCurrentPosition(
                     (pos) => {
                         myLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-                        if (!myMap) initMap(myLocation.lat, myLocation.lng);
-                        else myMap.setCenter([myLocation.lat, myLocation.lng]);
+                        
+                        if (!myMap) {
+                            initMap(myLocation.lat, myLocation.lng);
+                        }
+                        addMyPlacemark();
+                        
                         document.getElementById('status').innerHTML = `📍 Мои координаты: ${myLocation.lat.toFixed(5)}, ${myLocation.lng.toFixed(5)}`;
-                        updateMapMarkers();
                         broadcastLocation();
                     },
                     (err) => {
                         console.error('Геолокация:', err);
-                        initMap(56.838011, 60.597465);
-                        myLocation = { lat: 56.838011, lng: 60.597465 };
+                        const defaultCoords = { lat: 56.838011, lng: 60.597465 };
+                        myLocation = defaultCoords;
+                        if (!myMap) initMap(myLocation.lat, myLocation.lng);
+                        addMyPlacemark();
+                        document.getElementById('status').innerHTML = `⚠️ Геолокация недоступна, центр Екатеринбурга`;
+                        document.getElementById('myCoordsDisplay').innerHTML = `⚠️ Геолокация недоступна`;
                     }
                 );
+            } else {
+                const defaultCoords = { lat: 56.838011, lng: 60.597465 };
+                myLocation = defaultCoords;
+                if (!myMap) initMap(myLocation.lat, myLocation.lng);
+                addMyPlacemark();
+                document.getElementById('status').innerHTML = `❌ Браузер не поддерживает геолокацию`;
             }
         }
         
-        // Копирование ссылки
-        function copyRoomLink() {
-            const link = document.getElementById('roomLink').innerText;
+        // Копирование ссылки на страницу
+        function copyPageLink() {
+            const link = window.location.href;
             navigator.clipboard.writeText(link);
-            document.getElementById('status').innerHTML = '📋 Ссылка скопирована!';
+            document.getElementById('status').innerHTML = '📋 Ссылка скопирована! Пригласите друзей!';
             setTimeout(() => {
-                if (currentRoom) document.getElementById('status').innerHTML = `🟢 В комнате: ${currentRoom}`;
-            }, 1500);
+                document.getElementById('status').innerHTML = `🟢 В сети: ${connections.size} подключений`;
+            }, 2000);
         }
         
         // ========== UI ==========
-        document.getElementById('connectBtn').onclick = () => {
-            const room = document.getElementById('roomName').value.trim();
-            if (room) connectToRoom(room);
-        };
-        
-        document.getElementById('createRoomBtn').onclick = () => {
-            const newRoom = 'room_' + Math.random().toString(36).substr(2, 8);
-            document.getElementById('roomName').value = newRoom;
-            connectToRoom(newRoom);
-        };
-        
         document.getElementById('shareLocationBtn').onclick = broadcastLocation;
         document.getElementById('autoShareBtn').onclick = toggleAutoShare;
-        document.getElementById('copyLink').onclick = copyRoomLink;
+        document.getElementById('copyLinkBtn').onclick = copyPageLink;
         
-        // Загрузка сохранённого имени
+        // Сохранение имени
         const savedName = localStorage.getItem('userName');
         if (savedName) document.getElementById('userName').value = savedName;
         document.getElementById('userName').onchange = () => {
             localStorage.setItem('userName', document.getElementById('userName').value);
             myName = document.getElementById('userName').value || myName;
+            if (myOwnPlacemark) {
+                myOwnPlacemark.properties.set({ hintContent: `${myName} (вы)`, balloonContent: `<strong>${myName}</strong><br>📍 Это вы!` });
+            }
         };
         
-        // Запуск по хешу URL
+        // Отображение ссылки на страницу
+        document.getElementById('pageLink').innerText = window.location.href;
+        
+        // Запуск
         ymaps.ready(() => {
             getMyLocation();
+            connectToGlobalNetwork();
             
-            const hash = window.location.hash.slice(1);
-            if (hash) {
-                document.getElementById('roomName').value = hash;
-                setTimeout(() => connectToRoom(hash), 1000);
-            }
+            // Авто-отправка включена по умолчанию
+            autoShareInterval = setInterval(() => {
+                if (myLocation && connections.size > 0) {
+                    broadcastLocation();
+                }
+            }, 10000);
+            document.getElementById('autoShareBtn').innerHTML = '⏸ Авто-отправка (выкл)';
+            document.getElementById('autoShareBtn').style.background = '#f44336';
         });
     </script>
 </body>
