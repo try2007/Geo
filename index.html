@@ -2,82 +2,165 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>P2P GeoMap — активные пользователи</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>P2P GeoMap — живые пользователи</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body, html { width: 100%; height: 100%; font-family: 'Segoe UI', sans-serif; }
-        #map { width: 100%; height: 70%; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body, html {
+            width: 100%;
+            height: 100%;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        #map {
+            width: 100%;
+            height: 70%;
+        }
         .panel {
             position: absolute;
             top: 20px;
             right: 20px;
-            background: rgba(255,255,255,0.95);
-            padding: 15px;
-            border-radius: 12px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-            min-width: 220px;
+            background: rgba(255,255,255,0.96);
+            backdrop-filter: blur(8px);
+            padding: 16px;
+            border-radius: 16px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+            min-width: 240px;
             z-index: 1000;
+            border: 1px solid rgba(0,0,0,0.1);
         }
-        .panel h3 { margin-bottom: 10px; font-size: 16px; }
-        .user-list { list-style: none; max-height: 250px; overflow-y: auto; }
-        .user-list li { padding: 5px 0; font-size: 13px; border-bottom: 1px solid #eee; }
+        .panel h3 {
+            margin: 0 0 10px 0;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .user-list {
+            list-style: none;
+            max-height: 250px;
+            overflow-y: auto;
+            margin: 10px 0;
+            padding: 0;
+        }
+        .user-list li {
+            padding: 6px 8px;
+            margin-bottom: 4px;
+            background: #f5f5f5;
+            border-radius: 8px;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .user-list .you {
+            background: #e8f5e9;
+            border-left: 3px solid #4caf50;
+        }
+        .online-count {
+            background: #4caf50;
+            color: white;
+            border-radius: 20px;
+            padding: 2px 10px;
+            font-size: 12px;
+        }
+        input, button {
+            width: 100%;
+            padding: 8px;
+            margin-top: 8px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 13px;
+        }
+        button {
+            background: #4caf50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+            transition: 0.2s;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        button.secondary {
+            background: #2196f3;
+        }
+        button.danger {
+            background: #ff5722;
+        }
         .status {
             position: absolute;
             bottom: 20px;
             left: 20px;
-            background: rgba(0,0,0,0.7);
+            background: rgba(0,0,0,0.75);
+            backdrop-filter: blur(4px);
             color: white;
-            padding: 6px 12px;
+            padding: 6px 14px;
             border-radius: 20px;
-            font-size: 12px;
+            font-size: 11px;
             z-index: 1000;
+            font-family: monospace;
         }
-        button {
-            margin-top: 10px;
-            width: 100%;
-            padding: 8px;
-            background: #4caf50;
-            color: white;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
+        .badge {
+            width: 10px;
+            height: 10px;
+            border-radius: 10px;
+            display: inline-block;
         }
-        button:hover { background: #45a049; }
-        input {
-            width: 100%;
+        .room-info {
+            font-size: 11px;
+            background: #f0f0f0;
             padding: 6px;
-            margin: 5px 0;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-        }
-        .room-control {
-            background: #f5f5f5;
-            padding: 10px;
             border-radius: 8px;
-            margin-bottom: 10px;
+            margin-top: 8px;
+            text-align: center;
+            word-break: break-all;
+        }
+        .share-link {
+            font-size: 10px;
+            color: #2196f3;
+            cursor: pointer;
+            text-decoration: underline;
         }
     </style>
     <script src="https://api-maps.yandex.ru/2.1/?apikey=aff39fed-8ca3-47e1-978f-070535e0ea3a&lang=ru_RU"></script>
-    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
 </head>
 <body>
     <div id="map"></div>
     
     <div class="panel">
-        <div class="room-control">
-            <h3>🔗 P2P Комната</h3>
-            <input type="text" id="roomId" placeholder="ID комнаты" value="geo-room">
-            <button id="joinBtn">📡 Подключиться к комнате</button>
-            <button id="createBtn">✨ Создать новую комнату</button>
+        <h3>
+            👥 Активные
+            <span id="userCount" class="online-count">0</span>
+        </h3>
+        
+        <div>
+            <input type="text" id="userName" placeholder="Ваше имя" maxlength="20">
+            <input type="text" id="roomName" placeholder="ID комнаты" value="geo-map-room">
+            <button id="connectBtn" class="secondary">🔗 Подключиться к комнате</button>
+            <button id="createRoomBtn">✨ Создать новую комнату</button>
         </div>
-        <h3>👥 Онлайн (<span id="userCount">0</span>)</h3>
+        
+        <div id="roomInfo" class="room-info" style="display:none;">
+            🔗 Ваша ссылка: <span id="roomLink"></span>
+            <span id="copyLink" class="share-link">(копировать)</span>
+        </div>
+        
         <ul id="userList" class="user-list">
-            <li>— не подключено —</li>
+            <li style="text-align:center; color:#999;">— не подключено —</li>
         </ul>
+        
         <button id="shareLocationBtn" style="background:#2196f3;">📍 Отправить мои координаты</button>
-        <div style="font-size: 10px; color: #888; margin-top: 8px; text-align: center;">
-            ⚡ P2P режим | Данные идут напрямую между пользователями
+        <button id="autoShareBtn" style="background:#ff9800;">🔄 Авто-отправка (каждые 10 сек)</button>
+        
+        <div style="font-size: 10px; color: #888; margin-top: 10px; text-align: center;">
+            ⚡ P2P | Данные идут напрямую между браузерами<br>
+            🌐 Откройте эту же ссылку на другом устройстве
         </div>
     </div>
     <div class="status" id="status">
@@ -85,38 +168,27 @@
     </div>
 
     <script>
-        // ============== P2P ЧАСТЬ ==============
-        let socket = null;
-        let peerConnections = new Map();      // peerId -> RTCPeerConnection
-        let dataChannels = new Map();          // peerId -> RTCDataChannel
-        let remoteUsers = new Map();            // peerId -> { name, lat, lng, lastSeen }
-        let myUserId = null;
+        // ============== P2P ЧАСТЬ (PeerJS) ==============
+        let peer = null;
+        let connections = new Map();      // peerId -> DataConnection
+        let remoteUsers = new Map();       // peerId -> { name, lat, lng, lastSeen }
+        let myPeerId = null;
         let myLocation = null;
         let myName = 'User_' + Math.floor(Math.random() * 1000);
         let currentRoom = null;
-        
-        // STUN серверы Google (бесплатные, помогают установить соединение)
-        const configuration = {
-            iceServers: [
-                { urls: 'stun:stun.l.google.com:19302' },
-                { urls: 'stun:stun1.l.google.com:19302' },
-                { urls: 'stun:stun2.l.google.com:19302' }
-            ]
-        };
-        
-        // Signaling сервер (нужен только для обмена ICE-кандидатами)
-        // Используем бесплатный public signaling сервер или можно развернуть свой на Render
-        const SIGNALING_SERVER = 'wss://broadcast-server-3f3d.onrender.com'; // замените на ваш
+        let autoShareInterval = null;
         
         // Карта
         let myMap = null;
-        let placemarks = new Map(); // userId -> placemark
+        let placemarks = new Map();
         
-        function initMap(center) {
+        // Инициализация карты
+        function initMap(centerLat, centerLng) {
+            if (myMap) return;
             myMap = new ymaps.Map("map", {
-                center: center,
+                center: [centerLat, centerLng],
                 zoom: 13,
-                controls: ['zoomControl', 'fullscreenControl']
+                controls: ['zoomControl', 'fullscreenControl', 'geolocationControl']
             });
         }
         
@@ -126,22 +198,25 @@
             
             // Удаляем старые метки
             for (let [id, marker] of placemarks) {
-                if (id !== myUserId && !remoteUsers.has(id)) {
+                if (id !== myPeerId && !remoteUsers.has(id)) {
                     myMap.geoObjects.remove(marker);
                     placemarks.delete(id);
                 }
             }
             
-            // Добавляем/обновляем метки удалённых пользователей
+            // Добавляем/обновляем метки
             for (let [id, user] of remoteUsers) {
                 if (user.lat && user.lng) {
                     if (placemarks.has(id)) {
                         placemarks.get(id).geometry.setCoordinates([user.lat, user.lng]);
                     } else {
-                        const isYou = (id === myUserId);
+                        const isYou = (id === myPeerId);
                         const placemark = new ymaps.Placemark(
                             [user.lat, user.lng],
-                            { hintContent: user.name, balloonContent: `${user.name}<br>📍 ${user.lat.toFixed(5)}, ${user.lng.toFixed(5)}` },
+                            { 
+                                hintContent: user.name,
+                                balloonContent: `${user.name}<br>📍 ${user.lat.toFixed(5)}, ${user.lng.toFixed(5)}<br>🕐 ${Math.floor((Date.now() - (user.lastSeen || Date.now()))/1000)} сек назад`
+                            },
                             { preset: isYou ? 'islands#greenCircleIcon' : 'islands#blueCircleIcon' }
                         );
                         myMap.geoObjects.add(placemark);
@@ -150,34 +225,51 @@
                 }
             }
             
-            // Обновляем список пользователей в панели
-            const userListEl = document.getElementById('userList');
-            const userCountEl = document.getElementById('userCount');
-            const users = Array.from(remoteUsers.values()).filter(u => u.id !== myUserId);
-            userCountEl.textContent = users.length + (myLocation ? 1 : 0);
-            
-            if (users.length === 0 && !myLocation) {
-                userListEl.innerHTML = '<li>— нет активных —</li>';
-            } else {
-                let html = '';
-                if (myLocation) {
-                    html += `<li><strong>🔵 ${myName} (вы)</strong> — ${myLocation.lat.toFixed(5)}, ${myLocation.lng.toFixed(5)}</li>`;
-                }
-                users.forEach(u => {
-                    html += `<li>🟢 ${u.name}${u.lastSeen ? ' • ' + Math.floor((Date.now() - u.lastSeen)/1000) + 'c назад' : ''}</li>`;
-                });
-                userListEl.innerHTML = html;
-            }
+            // Обновляем список в панели
+            updateUserList();
         }
         
-        // Отправка координат всем подключённым пирам
+        // Обновление списка пользователей
+        function updateUserList() {
+            const userListEl = document.getElementById('userList');
+            const userCountEl = document.getElementById('userCount');
+            const users = Array.from(remoteUsers.values()).filter(u => u.id !== myPeerId);
+            const onlineCount = users.length + (myLocation ? 1 : 0);
+            userCountEl.textContent = onlineCount;
+            
+            if (users.length === 0 && !myLocation) {
+                userListEl.innerHTML = '<li style="text-align:center; color:#999;">— нет активных —</li>';
+                return;
+            }
+            
+            let html = '';
+            if (myLocation) {
+                html += `<li class="you">
+                    <span class="badge" style="background:#4caf50;"></span>
+                    <strong>${myName}</strong> (вы)
+                    <span style="font-size:10px; margin-left:auto;">📍 ${myLocation.lat.toFixed(4)}, ${myLocation.lng.toFixed(4)}</span>
+                </li>`;
+            }
+            
+            users.forEach(u => {
+                const secondsAgo = u.lastSeen ? Math.floor((Date.now() - u.lastSeen) / 1000) : 0;
+                html += `<li>
+                    <span class="badge" style="background:#2196f3;"></span>
+                    <strong>${u.name}</strong>
+                    <span style="font-size:10px; margin-left:auto;">🕐 ${secondsAgo}с назад</span>
+                </li>`;
+            });
+            userListEl.innerHTML = html;
+        }
+        
+        // Отправка координат всем подключённым
         function broadcastLocation() {
             if (!myLocation) {
                 alert('Сначала определите местоположение');
                 return;
             }
             
-            const locationData = {
+            const data = {
                 type: 'location',
                 lat: myLocation.lat,
                 lng: myLocation.lng,
@@ -185,154 +277,158 @@
                 timestamp: Date.now()
             };
             
-            // Отправляем через все открытые data-каналы
-            for (let [peerId, channel] of dataChannels) {
-                if (channel.readyState === 'open') {
-                    channel.send(JSON.stringify(locationData));
+            let sent = 0;
+            for (let [peerId, conn] of connections) {
+                if (conn.open) {
+                    conn.send(data);
+                    sent++;
                 }
             }
             
-            document.getElementById('status').innerHTML = '✅ Координаты отправлены всем';
+            const statusEl = document.getElementById('status');
+            statusEl.innerHTML = `✅ Координаты отправлены (${sent} получателей)`;
             setTimeout(() => {
-                if (currentRoom) document.getElementById('status').innerHTML = `🟢 В комнате: ${currentRoom}`;
+                if (currentRoom) statusEl.innerHTML = `🟢 В комнате: ${currentRoom} | ${connections.size} подключений`;
             }, 2000);
         }
         
-        // Создание PeerConnection для конкретного пира
-        async function createPeerConnection(peerId) {
-            const pc = new RTCPeerConnection(configuration);
-            peerConnections.set(peerId, pc);
+        // Авто-отправка
+        function toggleAutoShare() {
+            if (autoShareInterval) {
+                clearInterval(autoShareInterval);
+                autoShareInterval = null;
+                document.getElementById('autoShareBtn').style.background = '#ff9800';
+                document.getElementById('autoShareBtn').innerHTML = '🔄 Авто-отправка (выкл)';
+                document.getElementById('status').innerHTML = '⏸ Авто-отправка отключена';
+            } else {
+                autoShareInterval = setInterval(() => {
+                    if (myLocation && connections.size > 0) {
+                        broadcastLocation();
+                    }
+                }, 10000);
+                document.getElementById('autoShareBtn').style.background = '#f44336';
+                document.getElementById('autoShareBtn').innerHTML = '⏸ Авто-отправка (вкл)';
+                document.getElementById('status').innerHTML = '🔄 Авто-отправка активна (каждые 10 сек)';
+            }
+        }
+        
+        // Обработка входящего соединения
+        function setupConnection(conn) {
+            const peerId = conn.peer;
+            connections.set(peerId, conn);
             
-            // Создаём data-канал для обмена сообщениями
-            const dataChannel = pc.createDataChannel('geo-channel');
-            dataChannels.set(peerId, dataChannel);
-            
-            dataChannel.onopen = () => {
-                console.log(`DataChannel открыт с ${peerId}`);
-                // Отправляем приветствие с нашими данными
+            conn.on('open', () => {
+                console.log('Соединение открыто с', peerId);
+                document.getElementById('status').innerHTML = `🟢 Подключено: ${connections.size} пиров`;
+                
+                // Отправляем свои координаты новому пиру
                 if (myLocation) {
-                    dataChannel.send(JSON.stringify({
+                    conn.send({
                         type: 'location',
                         lat: myLocation.lat,
                         lng: myLocation.lng,
                         name: myName,
                         timestamp: Date.now()
-                    }));
+                    });
                 }
-            };
+            });
             
-            dataChannel.onmessage = (event) => {
-                try {
-                    const data = JSON.parse(event.data);
-                    if (data.type === 'location') {
-                        remoteUsers.set(peerId, {
-                            id: peerId,
-                            name: data.name || peerId.slice(0, 8),
-                            lat: data.lat,
-                            lng: data.lng,
-                            lastSeen: data.timestamp || Date.now()
-                        });
-                        updateMapMarkers();
-                    }
-                } catch(e) { console.error('Ошибка парсинга:', e); }
-            };
+            conn.on('data', (data) => {
+                if (data.type === 'location') {
+                    remoteUsers.set(peerId, {
+                        id: peerId,
+                        name: data.name || peerId.slice(0, 8),
+                        lat: data.lat,
+                        lng: data.lng,
+                        lastSeen: data.timestamp || Date.now()
+                    });
+                    updateMapMarkers();
+                }
+            });
             
-            dataChannel.onclose = () => {
-                console.log(`DataChannel закрыт с ${peerId}`);
+            conn.on('close', () => {
+                console.log('Соединение закрыто с', peerId);
+                connections.delete(peerId);
                 remoteUsers.delete(peerId);
                 updateMapMarkers();
-            };
-            
-            // Обработка ICE-кандидатов
-            pc.onicecandidate = (event) => {
-                if (event.candidate && socket) {
-                    socket.emit('ice-candidate', { to: peerId, candidate: event.candidate });
-                }
-            };
-            
-            // Обработка входящего data-канала (если мы отвечающая сторона)
-            pc.ondatachannel = (event) => {
-                const channel = event.channel;
-                dataChannels.set(peerId, channel);
-                channel.onmessage = (e) => {
-                    const data = JSON.parse(e.data);
-                    if (data.type === 'location') {
-                        remoteUsers.set(peerId, {
-                            id: peerId,
-                            name: data.name || peerId.slice(0, 8),
-                            lat: data.lat,
-                            lng: data.lng,
-                            lastSeen: data.timestamp || Date.now()
-                        });
-                        updateMapMarkers();
-                    }
-                };
-            };
-            
-            return pc;
+                document.getElementById('status').innerHTML = `🟡 Отключился: ${peerId.slice(0, 8)} | Осталось: ${connections.size}`;
+            });
         }
         
-        // Инициализация подключения к signaling серверу и комнате
-        function connectToRoom(roomName) {
-            if (socket) socket.disconnect();
+        // Подключение к комнате через PeerJS
+        function connectToRoom(roomId) {
+            // Отключаемся от старой комнаты
+            if (peer) {
+                for (let [id, conn] of connections) {
+                    conn.close();
+                }
+                connections.clear();
+                remoteUsers.clear();
+                peer.destroy();
+            }
             
-            socket = io(SIGNALING_SERVER);
-            currentRoom = roomName;
+            currentRoom = roomId;
+            myName = document.getElementById('userName').value.trim() || myName;
             
-            socket.on('connect', () => {
-                myUserId = socket.id;
-                console.log('Подключён к signaling серверу, ID:', myUserId);
-                socket.emit('join-room', roomName);
-                document.getElementById('status').innerHTML = `🟢 Подключён к комнате: ${roomName}`;
+            // Создаём нового пира с ID = roomId + случайный суффикс
+            const peerId = roomId + '_' + Math.random().toString(36).substr(2, 6);
+            peer = new Peer(peerId, {
+                host: '0.peerjs.com',
+                port: 443,
+                path: '/',
+                secure: true,
+                config: {
+                    iceServers: [
+                        { urls: 'stun:stun.l.google.com:19302' },
+                        { urls: 'stun:stun1.l.google.com:19302' }
+                    ]
+                }
             });
             
-            // Когда кто-то заходит в комнату
-            socket.on('user-joined', async (peerId) => {
-                if (peerId === myUserId) return;
-                console.log('Новый пользователь в комнате:', peerId);
+            myPeerId = peerId;
+            
+            peer.on('open', () => {
+                console.log('Peer открыт:', peerId);
+                document.getElementById('status').innerHTML = `🟢 Комната: ${roomId} | ID: ${peerId.slice(-6)}`;
                 
-                // Создаём соединение и инициируем offer
-                const pc = await createPeerConnection(peerId);
-                const offer = await pc.createOffer();
-                await pc.setLocalDescription(offer);
-                socket.emit('offer', { to: peerId, offer: pc.localDescription });
+                // Показываем ссылку для приглашения
+                const roomLink = window.location.href.split('#')[0] + '#' + roomId;
+                document.getElementById('roomLink').innerHTML = roomLink;
+                document.getElementById('roomInfo').style.display = 'block';
+                
+                // Подключаемся ко всем существующим пирам в комнате
+                // Для этого нужно знать ID других пиров — PeerJS не хранит список,
+                // поэтому используем URL hash для передачи ID комнаты, а пиры сами находят друг друга
+                // Проще: приглашаем через ссылку, и каждый новый пир подключается к уже существующим
+                
+                // Ищем других пиров в той же комнате через localStorage (костыль, но работает)
+                const peersInRoom = JSON.parse(localStorage.getItem('peers_' + roomId) || '[]');
+                peersInRoom.forEach(existingPeerId => {
+                    if (existingPeerId !== peerId && !connections.has(existingPeerId)) {
+                        const conn = peer.connect(existingPeerId);
+                        setupConnection(conn);
+                    }
+                });
+                
+                // Добавляем себя в список
+                const updatedPeers = [...new Set([...peersInRoom, peerId])];
+                localStorage.setItem('peers_' + roomId, JSON.stringify(updatedPeers));
+                
+                // Очищаем список при закрытии
+                window.addEventListener('beforeunload', () => {
+                    const currentPeers = JSON.parse(localStorage.getItem('peers_' + roomId) || '[]');
+                    const filtered = currentPeers.filter(p => p !== peerId);
+                    localStorage.setItem('peers_' + roomId, JSON.stringify(filtered));
+                });
             });
             
-            // Получение offer
-            socket.on('offer', async ({ from, offer }) => {
-                const pc = await createPeerConnection(from);
-                await pc.setRemoteDescription(new RTCSessionDescription(offer));
-                const answer = await pc.createAnswer();
-                await pc.setLocalDescription(answer);
-                socket.emit('answer', { to: from, answer: pc.localDescription });
+            peer.on('connection', (conn) => {
+                setupConnection(conn);
             });
             
-            // Получение answer
-            socket.on('answer', async ({ from, answer }) => {
-                const pc = peerConnections.get(from);
-                if (pc) {
-                    await pc.setRemoteDescription(new RTCSessionDescription(answer));
-                }
-            });
-            
-            // Получение ICE-кандидата
-            socket.on('ice-candidate', async ({ from, candidate }) => {
-                const pc = peerConnections.get(from);
-                if (pc) {
-                    await pc.addIceCandidate(new RTCIceCandidate(candidate));
-                }
-            });
-            
-            // Пользователь отключился
-            socket.on('user-left', (peerId) => {
-                console.log('Пользователь вышел:', peerId);
-                if (peerConnections.has(peerId)) {
-                    peerConnections.get(peerId).close();
-                    peerConnections.delete(peerId);
-                    dataChannels.delete(peerId);
-                }
-                remoteUsers.delete(peerId);
-                updateMapMarkers();
+            peer.on('error', (err) => {
+                console.error('PeerJS ошибка:', err);
+                document.getElementById('status').innerHTML = `❌ Ошибка: ${err.type}`;
             });
         }
         
@@ -342,38 +438,64 @@
                 navigator.geolocation.getCurrentPosition(
                     (pos) => {
                         myLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-                        if (!myMap) initMap([myLocation.lat, myLocation.lng]);
+                        if (!myMap) initMap(myLocation.lat, myLocation.lng);
                         else myMap.setCenter([myLocation.lat, myLocation.lng]);
-                        document.getElementById('status').innerHTML = `📍 Местоположение: ${myLocation.lat.toFixed(5)}, ${myLocation.lng.toFixed(5)}`;
+                        document.getElementById('status').innerHTML = `📍 Мои координаты: ${myLocation.lat.toFixed(5)}, ${myLocation.lng.toFixed(5)}`;
                         updateMapMarkers();
-                        broadcastLocation(); // сразу отправляем всем
+                        broadcastLocation();
                     },
                     (err) => {
                         console.error('Геолокация:', err);
-                        initMap([56.838011, 60.597465]);
+                        initMap(56.838011, 60.597465);
                         myLocation = { lat: 56.838011, lng: 60.597465 };
                     }
                 );
             }
         }
         
-        // Инициализация UI
-        document.getElementById('joinBtn').onclick = () => {
-            const room = document.getElementById('roomId').value.trim();
+        // Копирование ссылки
+        function copyRoomLink() {
+            const link = document.getElementById('roomLink').innerText;
+            navigator.clipboard.writeText(link);
+            document.getElementById('status').innerHTML = '📋 Ссылка скопирована!';
+            setTimeout(() => {
+                if (currentRoom) document.getElementById('status').innerHTML = `🟢 В комнате: ${currentRoom}`;
+            }, 1500);
+        }
+        
+        // ========== UI ==========
+        document.getElementById('connectBtn').onclick = () => {
+            const room = document.getElementById('roomName').value.trim();
             if (room) connectToRoom(room);
         };
         
-        document.getElementById('createBtn').onclick = () => {
+        document.getElementById('createRoomBtn').onclick = () => {
             const newRoom = 'room_' + Math.random().toString(36).substr(2, 8);
-            document.getElementById('roomId').value = newRoom;
+            document.getElementById('roomName').value = newRoom;
             connectToRoom(newRoom);
         };
         
         document.getElementById('shareLocationBtn').onclick = broadcastLocation;
+        document.getElementById('autoShareBtn').onclick = toggleAutoShare;
+        document.getElementById('copyLink').onclick = copyRoomLink;
         
-        // Запуск
+        // Загрузка сохранённого имени
+        const savedName = localStorage.getItem('userName');
+        if (savedName) document.getElementById('userName').value = savedName;
+        document.getElementById('userName').onchange = () => {
+            localStorage.setItem('userName', document.getElementById('userName').value);
+            myName = document.getElementById('userName').value || myName;
+        };
+        
+        // Запуск по хешу URL
         ymaps.ready(() => {
             getMyLocation();
+            
+            const hash = window.location.hash.slice(1);
+            if (hash) {
+                document.getElementById('roomName').value = hash;
+                setTimeout(() => connectToRoom(hash), 1000);
+            }
         });
     </script>
 </body>
