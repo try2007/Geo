@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>P2P GeoMap — активные пользователи</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body, html { width: 100%; height: 100%; font-family: 'Segoe UI', sans-serif; }
+        #map { width: 100%; height: 70%; }
+        .panel {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(255,255,255,0.95);
+            padding: 15px;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            min-width: 220px;
+            z-index: 1000;
+        }
+        .panel h3 { margin-bottom: 10px; font-size: 16px; }
+        .user-list { list-style: none; max-height: 250px; overflow-y: auto; }
+        .user-list li { padding: 5px 0; font-size: 13px; border-bottom: 1px solid #eee; }
+        .status {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            z-index: 1000;
+        }
+        button {
+            margin-top: 10px;
+            width: 100%;
+            padding: 8px;
+            background: #4caf50;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+        button:hover { background: #45a049; }
+        input {
+            width: 100%;
+            padding: 6px;
+            margin: 5px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .room-control {
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+        }
+    </style>
+    <script src="https://api-maps.yandex.ru/2.1/?apikey=aff39fed-8ca3-47e1-978f-070535e0ea3a&lang=ru_RU"></script>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+</head>
+<body>
+    <div id="map"></div>
+    
+    <div class="panel">
+        <div class="room-control">
+            <h3>🔗 P2P Комната</h3>
+            <input type="text" id="roomId" placeholder="ID комнаты" value="geo-room">
+            <button id="joinBtn">📡 Подключиться к комнате</button>
+            <button id="createBtn">✨ Создать новую комнату</button>
+        </div>
+        <h3>👥 Онлайн (<span id="userCount">0</span>)</h3>
+        <ul id="userList" class="user-list">
+            <li>— не подключено —</li>
+        </ul>
+        <button id="shareLocationBtn" style="background:#2196f3;">📍 Отправить мои координаты</button>
+        <div style="font-size: 10px; color: #888; margin-top: 8px; text-align: center;">
+            ⚡ P2P режим | Данные идут напрямую между пользователями
+        </div>
+    </div>
+    <div class="status" id="status">
+        ⚪ Не подключено
+    </div>
+
+    <script>
+        // ============== P2P ЧАСТЬ ==============
+        let socket = null;
+        let peerConnections = new Map();      // peerId -> RTCPeerConnection
+        let dataChannels = new Map();          // peerId -> RTCDataChannel
+        let remoteUsers = new Map();            // peerId -> { name, lat, lng, lastSeen }
+        let myUserId = null;
+        let myLocation = null;
+        let myName = 'User_' + Math.floor(Math.random() * 1000);
+        let currentRoom = null;
+        
+        // STUN серверы Google (бесплатные, помогают установить соединение)
+        const configuration = {
+            iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:stun1.l.google.com:19302' },
+                { urls: 'stun:stun2.l.google.com:19302' }
+            ]
+        };
+        
+        // Signaling сервер (нужен только для обмена ICE-кандидатами)
+        // Используем бесплатный public signaling сервер или можно развернуть свой на Render
+        const SIGNALING_SERVER = 'wss://broadcast-server-3f3d.onrender.com'; // замените на ваш
+        
+        // Карта
+        let myMap = null;
+        let placemarks = new Map(); // userId -> placemark
+        
+        function initMap(center) {
+            myMap = new ymaps.Map("map", {
+                center: center,
+                zoom: 13,
+                controls: ['zoomControl', 'fullscreenControl']
+            });
+        }
+        
+        // Обновление меток на карте
+        function updateMapMarkers() {
+            if (!myMap) return;
+            
+            // Удаляем старые метки
+            for (let [id, marker] of placemarks) {
+                if (id !== myUserId && !remoteUsers.has(id)) {
+                    myMap.geoObjects.remove(marker);
+                    placemarks.delete(id);
+                }
+            }
+            
+            // Добавляем/обновляем метки удалённых пользователей
+            for (let [id, user] of remoteUsers) {
+                if (user.lat && user.lng) {
+                    if (placemarks.has(id)) {
+                        placemarks.get(id).geometry.setCoordinates([user.lat, user.lng]);
+                    } else {
+                        const isYou = (id === myUserId);
+                        const placemark = new ymaps.Placemark(
+                            [user.lat, user.lng],
+                            { hintContent: user.name, balloonContent: `${user.name}<br>📍 ${user.lat.toFixed(5)}, ${user.lng.toFixed(5)}` },
+                            { preset: isYou ? 'islands#greenCircleIcon' : 'islands#blueCircleIcon' }
+                        );
+                        myMap.geoObjects.add(placemark);
+                        placemarks.set(id, placemark);
+                    }
+                }
+            }
+            
+            // Обновляем список пользователей в панели
+            const userListEl = document.getElementById('userList');
+            const userCountEl = document.getElementById('userCount');
+            const users = Array.from(remoteUsers.values()).filter(u => u.id !== myUserId);
+            userCountEl.textContent = users.length + (myLocation ? 1 : 0);
+            
+            if (users.length === 0 && !myLocation) {
+                userListEl.innerHTML = '<li>— нет активных —</li>';
+            } else {
+                let html = '';
+                if (myLocation) {
+                    html += `<li><strong>🔵 ${myName} (вы)</strong> — ${myLocation.lat.toFixed(5)}, ${myLocation.lng.toFixed(5)}</li>`;
+                }
+                users.forEach(u => {
+                    html += `<li>🟢 ${u.name}${u.lastSeen ? ' • ' + Math.floor((Date.now() - u.lastSeen)/1000) + 'c назад' : ''}</li>`;
+                });
+                userListEl.innerHTML = html;
+            }
+        }
+        
+        // Отправка координат всем подключённым пирам
+        function broadcastLocation() {
+            if (!myLocation) {
+                alert('Сначала определите местоположение');
+                return;
+            }
+            
+            const locationData = {
+                type: 'location',
+                lat: myLocation.lat,
+                lng: myLocation.lng,
+                name: myName,
+                timestamp: Date.now()
+            };
+            
+            // Отправляем через все открытые data-каналы
+            for (let [peerId, channel] of dataChannels) {
+                if (channel.readyState === 'open') {
+                    channel.send(JSON.stringify(locationData));
+                }
+            }
+            
+            document.getElementById('status').innerHTML = '✅ Координаты отправлены всем';
+            setTimeout(() => {
+                if (currentRoom) document.getElementById('status').innerHTML = `🟢 В комнате: ${currentRoom}`;
+            }, 2000);
+        }
+        
+        // Создание PeerConnection для конкретного пира
+        async function createPeerConnection(peerId) {
+            const pc = new RTCPeerConnection(configuration);
+            peerConnections.set(peerId, pc);
+            
+            // Создаём data-канал для обмена сообщениями
+            const dataChannel = pc.createDataChannel('geo-channel');
+            dataChannels.set(peerId, dataChannel);
+            
+            dataChannel.onopen = () => {
+                console.log(`DataChannel открыт с ${peerId}`);
+                // Отправляем приветствие с нашими данными
+                if (myLocation) {
+                    dataChannel.send(JSON.stringify({
+                        type: 'location',
+                        lat: myLocation.lat,
+                        lng: myLocation.lng,
+                        name: myName,
+                        timestamp: Date.now()
+                    }));
+                }
+            };
+            
+            dataChannel.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    if (data.type === 'location') {
+                        remoteUsers.set(peerId, {
+                            id: peerId,
+                            name: data.name || peerId.slice(0, 8),
+                            lat: data.lat,
+                            lng: data.lng,
+                            lastSeen: data.timestamp || Date.now()
+                        });
+                        updateMapMarkers();
+                    }
+                } catch(e) { console.error('Ошибка парсинга:', e); }
+            };
+            
+            dataChannel.onclose = () => {
+                console.log(`DataChannel закрыт с ${peerId}`);
+                remoteUsers.delete(peerId);
+                updateMapMarkers();
+            };
+            
+            // Обработка ICE-кандидатов
+            pc.onicecandidate = (event) => {
+                if (event.candidate && socket) {
+                    socket.emit('ice-candidate', { to: peerId, candidate: event.candidate });
+                }
+            };
+            
+            // Обработка входящего data-канала (если мы отвечающая сторона)
+            pc.ondatachannel = (event) => {
+                const channel = event.channel;
+                dataChannels.set(peerId, channel);
+                channel.onmessage = (e) => {
+                    const data = JSON.parse(e.data);
+                    if (data.type === 'location') {
+                        remoteUsers.set(peerId, {
+                            id: peerId,
+                            name: data.name || peerId.slice(0, 8),
+                            lat: data.lat,
+                            lng: data.lng,
+                            lastSeen: data.timestamp || Date.now()
+                        });
+                        updateMapMarkers();
+                    }
+                };
+            };
+            
+            return pc;
+        }
+        
+        // Инициализация подключения к signaling серверу и комнате
+        function connectToRoom(roomName) {
+            if (socket) socket.disconnect();
+            
+            socket = io(SIGNALING_SERVER);
+            currentRoom = roomName;
+            
+            socket.on('connect', () => {
+                myUserId = socket.id;
+                console.log('Подключён к signaling серверу, ID:', myUserId);
+                socket.emit('join-room', roomName);
+                document.getElementById('status').innerHTML = `🟢 Подключён к комнате: ${roomName}`;
+            });
+            
+            // Когда кто-то заходит в комнату
+            socket.on('user-joined', async (peerId) => {
+                if (peerId === myUserId) return;
+                console.log('Новый пользователь в комнате:', peerId);
+                
+                // Создаём соединение и инициируем offer
+                const pc = await createPeerConnection(peerId);
+                const offer = await pc.createOffer();
+                await pc.setLocalDescription(offer);
+                socket.emit('offer', { to: peerId, offer: pc.localDescription });
+            });
+            
+            // Получение offer
+            socket.on('offer', async ({ from, offer }) => {
+                const pc = await createPeerConnection(from);
+                await pc.setRemoteDescription(new RTCSessionDescription(offer));
+                const answer = await pc.createAnswer();
+                await pc.setLocalDescription(answer);
+                socket.emit('answer', { to: from, answer: pc.localDescription });
+            });
+            
+            // Получение answer
+            socket.on('answer', async ({ from, answer }) => {
+                const pc = peerConnections.get(from);
+                if (pc) {
+                    await pc.setRemoteDescription(new RTCSessionDescription(answer));
+                }
+            });
+            
+            // Получение ICE-кандидата
+            socket.on('ice-candidate', async ({ from, candidate }) => {
+                const pc = peerConnections.get(from);
+                if (pc) {
+                    await pc.addIceCandidate(new RTCIceCandidate(candidate));
+                }
+            });
+            
+            // Пользователь отключился
+            socket.on('user-left', (peerId) => {
+                console.log('Пользователь вышел:', peerId);
+                if (peerConnections.has(peerId)) {
+                    peerConnections.get(peerId).close();
+                    peerConnections.delete(peerId);
+                    dataChannels.delete(peerId);
+                }
+                remoteUsers.delete(peerId);
+                updateMapMarkers();
+            });
+        }
+        
+        // Геолокация
+        function getMyLocation() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    (pos) => {
+                        myLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+                        if (!myMap) initMap([myLocation.lat, myLocation.lng]);
+                        else myMap.setCenter([myLocation.lat, myLocation.lng]);
+                        document.getElementById('status').innerHTML = `📍 Местоположение: ${myLocation.lat.toFixed(5)}, ${myLocation.lng.toFixed(5)}`;
+                        updateMapMarkers();
+                        broadcastLocation(); // сразу отправляем всем
+                    },
+                    (err) => {
+                        console.error('Геолокация:', err);
+                        initMap([56.838011, 60.597465]);
+                        myLocation = { lat: 56.838011, lng: 60.597465 };
+                    }
+                );
+            }
+        }
+        
+        // Инициализация UI
+        document.getElementById('joinBtn').onclick = () => {
+            const room = document.getElementById('roomId').value.trim();
+            if (room) connectToRoom(room);
+        };
+        
+        document.getElementById('createBtn').onclick = () => {
+            const newRoom = 'room_' + Math.random().toString(36).substr(2, 8);
+            document.getElementById('roomId').value = newRoom;
+            connectToRoom(newRoom);
+        };
+        
+        document.getElementById('shareLocationBtn').onclick = broadcastLocation;
+        
+        // Запуск
+        ymaps.ready(() => {
+            getMyLocation();
+        });
+    </script>
+</body>
+</html>
